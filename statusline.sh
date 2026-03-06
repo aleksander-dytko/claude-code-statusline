@@ -258,13 +258,20 @@ if [ -f "$cache_file" ]; then
 fi
 
 if $needs_refresh; then
+    # Auto-clear stale lock (left behind if script was killed mid-fetch)
+    if [ -f "$lock_file" ]; then
+        lock_mtime=$(stat -c %Y "$lock_file" 2>/dev/null || stat -f %m "$lock_file" 2>/dev/null)
+        lock_age=$(( $(date +%s) - lock_mtime ))
+        [ "$lock_age" -gt 30 ] && rm -f "$lock_file" 2>/dev/null
+    fi
+
     # Non-blocking lock — only one session fetches, others use stale cache
     if ( set -C; > "$lock_file" ) 2>/dev/null; then
         trap 'rm -f "$lock_file"' EXIT INT TERM
         token=$(get_oauth_token)
         if [ -n "$token" ] && [ "$token" != "null" ]; then
-            # Fetch plan limits (5h / 7d / extra spend)
-            response=$(curl -s --max-time 10 \
+            # Fetch plan limits (5h / 7d / extra spend) — primary data, must succeed fast
+            response=$(curl -s --max-time 8 \
                 -H "Accept: application/json" \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $token" \
@@ -276,34 +283,34 @@ if $needs_refresh; then
                 echo "$response" > "$cache_file"
             fi
 
-            # Org ID: read from permanent cache, discover via API only if missing
-            org_id=""
-            [ -f "$org_id_file" ] && org_id=$(cat "$org_id_file" 2>/dev/null)
-            if [ -z "$org_id" ] || [ "$org_id" = "null" ]; then
-                orgs=$(curl -s --max-time 10 \
-                    -H "Accept: application/json" \
-                    -H "Authorization: Bearer $token" \
-                    -H "User-Agent: claude-code-statusline/1.0.0" \
-                    "https://claude.ai/api/organizations" 2>/dev/null)
-                org_id=$(echo "$orgs" | jq -r '
-                    if type == "array" then .[0].uuid // .[0].id // empty
-                    else .uuid // .id // empty
-                    end' 2>/dev/null)
-                [ -n "$org_id" ] && [ "$org_id" != "null" ] && echo "$org_id" > "$org_id_file"
-            fi
-
-            # Fetch prepaid balance + currency using cached org ID
-            if [ -n "$org_id" ] && [ "$org_id" != "null" ]; then
-                bal_resp=$(curl -s --max-time 10 \
-                    -H "Accept: application/json" \
-                    -H "Authorization: Bearer $token" \
-                    -H "User-Agent: claude-code-statusline/1.0.0" \
-                    "https://claude.ai/api/organizations/${org_id}/prepaid/credits" 2>/dev/null)
-                if [ -n "$bal_resp" ] && echo "$bal_resp" | jq . >/dev/null 2>&1; then
-                    balance_data="$bal_resp"
-                    echo "$bal_resp" > "$balance_cache"
+            # Balance fetch runs in background — never blocks the status line render
+            # Uses permanently cached org ID; discovers it only once if missing
+            (
+                org_id=""
+                [ -f "$org_id_file" ] && org_id=$(cat "$org_id_file" 2>/dev/null)
+                if [ -z "$org_id" ] || [ "$org_id" = "null" ]; then
+                    orgs=$(curl -s --max-time 5 \
+                        -H "Accept: application/json" \
+                        -H "Authorization: Bearer $token" \
+                        -H "User-Agent: claude-code-statusline/1.0.0" \
+                        "https://claude.ai/api/organizations" 2>/dev/null)
+                    org_id=$(echo "$orgs" | jq -r '
+                        if type == "array" then .[0].uuid // .[0].id // empty
+                        else .uuid // .id // empty
+                        end' 2>/dev/null)
+                    [ -n "$org_id" ] && [ "$org_id" != "null" ] && echo "$org_id" > "$org_id_file"
                 fi
-            fi
+                if [ -n "$org_id" ] && [ "$org_id" != "null" ]; then
+                    bal_resp=$(curl -s --max-time 5 \
+                        -H "Accept: application/json" \
+                        -H "Authorization: Bearer $token" \
+                        -H "User-Agent: claude-code-statusline/1.0.0" \
+                        "https://claude.ai/api/organizations/${org_id}/prepaid/credits" 2>/dev/null)
+                    if [ -n "$bal_resp" ] && echo "$bal_resp" | jq . >/dev/null 2>&1; then
+                        echo "$bal_resp" > "$balance_cache"
+                    fi
+                fi
+            ) &
         fi
         rm -f "$lock_file"
     fi
