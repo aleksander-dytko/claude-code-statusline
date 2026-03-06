@@ -116,30 +116,6 @@ Then add to `~/.claude/settings.json`:
 
 ---
 
-## Refresh after each response (recommended)
-
-By default, usage data is cached for 60 seconds. To see accurate limits **immediately after Claude finishes working**, add a `Stop` hook to `~/.claude/settings.json` that clears the cache:
-
-```json
-{
-  "statusLine": { ... },
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "rm -f /tmp/claude/statusline-usage-cache.json /tmp/claude/statusline-balance-cache.json"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-The next status line render after Claude stops will fetch fresh data from the API.
-
 ## Troubleshooting
 
 See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).

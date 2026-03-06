@@ -13,7 +13,7 @@ STATUSLINE_SHOW_CONTEXT="${STATUSLINE_SHOW_CONTEXT:-true}"
 STATUSLINE_SHOW_SESSION="${STATUSLINE_SHOW_SESSION:-true}"
 STATUSLINE_SHOW_WEEKLY="${STATUSLINE_SHOW_WEEKLY:-true}"
 STATUSLINE_SHOW_EXTRA="${STATUSLINE_SHOW_EXTRA:-true}"
-STATUSLINE_CACHE_TTL="${STATUSLINE_CACHE_TTL:-60}"           # seconds between API fetches
+STATUSLINE_CACHE_TTL="${STATUSLINE_CACHE_TTL:-20}"           # seconds between API fetches
 STATUSLINE_CACHE_DIR="${STATUSLINE_CACHE_DIR:-/tmp/claude}"  # cache directory
 STATUSLINE_CURRENCY_SYMBOL="${STATUSLINE_CURRENCY_SYMBOL:-\$}"  # set to € for Europe
 # ────────────────────────────────────────────────────────────────────────────

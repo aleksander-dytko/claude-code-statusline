@@ -93,7 +93,7 @@ export STATUSLINE_CURRENCY_SYMBOL='€'
 ---
 
 ### `STATUSLINE_CACHE_TTL`
-**Default:** `60`
+**Default:** `20`
 
 Seconds between API fetches for usage data. Higher values reduce API calls but mean slightly stale usage numbers.
 
