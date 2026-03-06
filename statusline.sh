@@ -234,12 +234,9 @@ total_tokens=$(format_tokens "$size")
 pct_used=$(( size > 0 ? current * 100 / size : 0 ))
 
 # ─── Fetch / cache usage + balance APIs ──────────────────────────────────────
-# Cache files (deleted by Stop hook after each Claude response → fresh data on next render)
 cache_file="${STATUSLINE_CACHE_DIR}/statusline-usage-cache.json"
 balance_cache="${STATUSLINE_CACHE_DIR}/statusline-balance-cache.json"
-# Org ID is permanent — org IDs never change, discover once and reuse forever
 org_id_file="${HOME}/.claude/statusline-org-id"
-lock_file="${STATUSLINE_CACHE_DIR}/statusline-fetch.lock"
 mkdir -p "${STATUSLINE_CACHE_DIR}"
 
 needs_refresh=true
@@ -258,65 +255,53 @@ if [ -f "$cache_file" ]; then
 fi
 
 if $needs_refresh; then
-    # Auto-clear stale lock (left behind if script was killed mid-fetch)
-    if [ -f "$lock_file" ]; then
-        lock_mtime=$(stat -c %Y "$lock_file" 2>/dev/null || stat -f %m "$lock_file" 2>/dev/null)
-        lock_age=$(( $(date +%s) - lock_mtime ))
-        [ "$lock_age" -gt 30 ] && rm -f "$lock_file" 2>/dev/null
-    fi
-
-    # Non-blocking lock — only one session fetches, others use stale cache
-    if ( set -C; > "$lock_file" ) 2>/dev/null; then
-        trap 'rm -f "$lock_file"' EXIT INT TERM
-        token=$(get_oauth_token)
-        if [ -n "$token" ] && [ "$token" != "null" ]; then
-            # Fetch plan limits (5h / 7d / extra spend) — primary data, must succeed fast
-            response=$(curl -s --max-time 8 \
-                -H "Accept: application/json" \
-                -H "Content-Type: application/json" \
-                -H "Authorization: Bearer $token" \
-                -H "anthropic-beta: oauth-2025-04-20" \
-                -H "User-Agent: claude-code-statusline/1.0.0" \
-                "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
-            if [ -n "$response" ] && echo "$response" | jq . >/dev/null 2>&1; then
-                usage_data="$response"
-                echo "$response" > "$cache_file"
-            fi
-
-            # Balance fetch runs in background — never blocks the status line render
-            # Uses permanently cached org ID; discovers it only once if missing
-            (
-                org_id=""
-                [ -f "$org_id_file" ] && org_id=$(cat "$org_id_file" 2>/dev/null)
-                if [ -z "$org_id" ] || [ "$org_id" = "null" ]; then
-                    orgs=$(curl -s --max-time 5 \
-                        -H "Accept: application/json" \
-                        -H "Authorization: Bearer $token" \
-                        -H "User-Agent: claude-code-statusline/1.0.0" \
-                        "https://claude.ai/api/organizations" 2>/dev/null)
-                    org_id=$(echo "$orgs" | jq -r '
-                        if type == "array" then .[0].uuid // .[0].id // empty
-                        else .uuid // .id // empty
-                        end' 2>/dev/null)
-                    [ -n "$org_id" ] && [ "$org_id" != "null" ] && echo "$org_id" > "$org_id_file"
-                fi
-                if [ -n "$org_id" ] && [ "$org_id" != "null" ]; then
-                    bal_resp=$(curl -s --max-time 5 \
-                        -H "Accept: application/json" \
-                        -H "Authorization: Bearer $token" \
-                        -H "User-Agent: claude-code-statusline/1.0.0" \
-                        "https://claude.ai/api/organizations/${org_id}/prepaid/credits" 2>/dev/null)
-                    if [ -n "$bal_resp" ] && echo "$bal_resp" | jq . >/dev/null 2>&1; then
-                        echo "$bal_resp" > "$balance_cache"
-                    fi
-                fi
-            ) &
+    token=$(get_oauth_token)
+    if [ -n "$token" ] && [ "$token" != "null" ]; then
+        # Fetch plan limits (5h / 7d / extra spend)
+        response=$(curl -s --max-time 8 \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $token" \
+            -H "anthropic-beta: oauth-2025-04-20" \
+            -H "User-Agent: claude-code-statusline/1.0.0" \
+            "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
+        if [ -n "$response" ] && echo "$response" | jq . >/dev/null 2>&1; then
+            usage_data="$response"
+            echo "$response" > "$cache_file"
         fi
-        rm -f "$lock_file"
+
+        # Balance fetch in background — never blocks the status line render
+        # Org ID cached permanently; discovered only once via /api/organizations
+        (
+            org_id=""
+            [ -f "$org_id_file" ] && org_id=$(cat "$org_id_file" 2>/dev/null)
+            if [ -z "$org_id" ] || [ "$org_id" = "null" ]; then
+                orgs=$(curl -s --max-time 5 \
+                    -H "Accept: application/json" \
+                    -H "Authorization: Bearer $token" \
+                    -H "User-Agent: claude-code-statusline/1.0.0" \
+                    "https://claude.ai/api/organizations" 2>/dev/null)
+                org_id=$(echo "$orgs" | jq -r '
+                    if type == "array" then .[0].uuid // .[0].id // empty
+                    else .uuid // .id // empty
+                    end' 2>/dev/null)
+                [ -n "$org_id" ] && [ "$org_id" != "null" ] && echo "$org_id" > "$org_id_file"
+            fi
+            if [ -n "$org_id" ] && [ "$org_id" != "null" ]; then
+                bal_resp=$(curl -s --max-time 5 \
+                    -H "Accept: application/json" \
+                    -H "Authorization: Bearer $token" \
+                    -H "User-Agent: claude-code-statusline/1.0.0" \
+                    "https://claude.ai/api/organizations/${org_id}/prepaid/credits" 2>/dev/null)
+                if [ -n "$bal_resp" ] && echo "$bal_resp" | jq . >/dev/null 2>&1; then
+                    echo "$bal_resp" > "$balance_cache"
+                fi
+            fi
+        ) &
     fi
-    # Fall back to stale caches if fetch failed or lock was held by another session
-    [ -z "$usage_data" ]   && [ -f "$cache_file" ]    && usage_data=$(cat "$cache_file" 2>/dev/null)
-    [ -z "$balance_data" ] && [ -f "$balance_cache" ] && balance_data=$(cat "$balance_cache" 2>/dev/null)
+    # Fall back to stale cache if fetch failed
+    [ -z "$usage_data" ] && [ -f "$cache_file" ] && usage_data=$(cat "$cache_file" 2>/dev/null)
+    balance_data=$(cat "$balance_cache" 2>/dev/null)
 fi
 
 # ─── Build output ────────────────────────────────────────────────────────────
