@@ -83,19 +83,6 @@ extra_color() {
     fi
 }
 
-# Map ISO 4217 currency code to symbol (env var STATUSLINE_CURRENCY_SYMBOL overrides)
-currency_to_symbol() {
-    [ -n "$STATUSLINE_CURRENCY_SYMBOL" ] && echo "$STATUSLINE_CURRENCY_SYMBOL" && return
-    case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
-        eur) echo "€" ;;
-        gbp) echo "£" ;;
-        jpy) echo "¥" ;;
-        cad) echo "CA\$" ;;
-        aud) echo "AU\$" ;;
-        *)   echo "\$" ;;  # USD and unknown
-    esac
-}
-
 # Resolve OAuth token — tries 4 sources in order
 get_oauth_token() {
     # 1. Explicit env var override
@@ -211,9 +198,9 @@ format_countdown() {
     hours=$(( diff / 3600 ))
     mins=$(( (diff % 3600) / 60 ))
 
-    if   [ "$hours" -ge 24 ]; then echo "in $(( hours / 24 ))d"
-    elif [ "$hours" -ge 1 ];  then echo "in ${hours}h ${mins}min"
-    else echo "in ${mins}min"
+    if   [ "$hours" -ge 24 ]; then echo "resets in $(( hours / 24 ))d"
+    elif [ "$hours" -ge 1 ];  then echo "resets in ${hours}h ${mins}min"
+    else echo "resets in ${mins}min"
     fi
 }
 
@@ -233,15 +220,12 @@ used_tokens=$(format_tokens "$current")
 total_tokens=$(format_tokens "$size")
 pct_used=$(( size > 0 ? current * 100 / size : 0 ))
 
-# ─── Fetch / cache usage + balance APIs ──────────────────────────────────────
+# ─── Fetch / cache usage API ─────────────────────────────────────────────────
 cache_file="${STATUSLINE_CACHE_DIR}/statusline-usage-cache.json"
-balance_cache="${STATUSLINE_CACHE_DIR}/statusline-balance-cache.json"
-org_id_file="${HOME}/.claude/statusline-org-id"
 mkdir -p "${STATUSLINE_CACHE_DIR}"
 
 needs_refresh=true
 usage_data=""
-balance_data=""
 
 if [ -f "$cache_file" ]; then
     cache_mtime=$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null)
@@ -250,14 +234,12 @@ if [ -f "$cache_file" ]; then
     if [ "$cache_age" -lt "$STATUSLINE_CACHE_TTL" ]; then
         needs_refresh=false
         usage_data=$(cat "$cache_file" 2>/dev/null)
-        balance_data=$(cat "$balance_cache" 2>/dev/null)
     fi
 fi
 
 if $needs_refresh; then
     token=$(get_oauth_token)
     if [ -n "$token" ] && [ "$token" != "null" ]; then
-        # Fetch plan limits (5h / 7d / extra spend)
         response=$(curl -s --max-time 8 \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
@@ -269,39 +251,8 @@ if $needs_refresh; then
             usage_data="$response"
             echo "$response" > "$cache_file"
         fi
-
-        # Balance fetch in background — never blocks the status line render
-        # Org ID cached permanently; discovered only once via /api/organizations
-        (
-            org_id=""
-            [ -f "$org_id_file" ] && org_id=$(cat "$org_id_file" 2>/dev/null)
-            if [ -z "$org_id" ] || [ "$org_id" = "null" ]; then
-                orgs=$(curl -s --max-time 5 \
-                    -H "Accept: application/json" \
-                    -H "Authorization: Bearer $token" \
-                    -H "User-Agent: claude-code-statusline/1.0.0" \
-                    "https://claude.ai/api/organizations" 2>/dev/null)
-                org_id=$(echo "$orgs" | jq -r '
-                    if type == "array" then .[0].uuid // .[0].id // empty
-                    else .uuid // .id // empty
-                    end' 2>/dev/null)
-                [ -n "$org_id" ] && [ "$org_id" != "null" ] && echo "$org_id" > "$org_id_file"
-            fi
-            if [ -n "$org_id" ] && [ "$org_id" != "null" ]; then
-                bal_resp=$(curl -s --max-time 5 \
-                    -H "Accept: application/json" \
-                    -H "Authorization: Bearer $token" \
-                    -H "User-Agent: claude-code-statusline/1.0.0" \
-                    "https://claude.ai/api/organizations/${org_id}/prepaid/credits" 2>/dev/null)
-                if [ -n "$bal_resp" ] && echo "$bal_resp" | jq . >/dev/null 2>&1; then
-                    echo "$bal_resp" > "$balance_cache"
-                fi
-            fi
-        ) &
     fi
-    # Fall back to stale cache if fetch failed
     [ -z "$usage_data" ] && [ -f "$cache_file" ] && usage_data=$(cat "$cache_file" 2>/dev/null)
-    balance_data=$(cat "$balance_cache" 2>/dev/null)
 fi
 
 # ─── Build output ────────────────────────────────────────────────────────────
@@ -398,26 +349,11 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
             extra_limit=$(echo "$usage_data" | jq -r '.extra_usage.monthly_limit // 0' | awk '{printf "%.2f", $1/100}')
             extra_clr=$(extra_color "$extra_pct")
 
-            # Currency: from balance API if available, else env var, else $
-            bal_currency=$(echo "$balance_data" | jq -r '.currency // empty' 2>/dev/null)
-            sym=$(currency_to_symbol "$bal_currency")
-
+            sym="${STATUSLINE_CURRENCY_SYMBOL}"
             out+="${sep}${white}extra${reset} ${extra_clr}${sym}${extra_used}/${sym}${extra_limit}${reset}"
 
-            # Prepaid balance from credits endpoint (the real current balance)
-            if [ -n "$balance_data" ] && echo "$balance_data" | jq -e . >/dev/null 2>&1; then
-                # Try known field names; value may be cents (int) or decimal
-                bal_raw=$(echo "$balance_data" | jq -r '
-                    .balance // .credits // .amount // .prepaid_balance // empty' 2>/dev/null)
-                if [ -n "$bal_raw" ] && [ "$bal_raw" != "null" ]; then
-                    # If value looks like cents (large integer), divide by 100
-                    bal_display=$(awk -v v="$bal_raw" 'BEGIN {
-                        if (v == int(v) && v > 200) printf "%.2f", v/100
-                        else printf "%.2f", v
-                    }')
-                    out+=" ${dim}(${reset}${white}${sym}${bal_display} bal${reset}${dim})${reset}"
-                fi
-            fi
+            extra_cap_left=$(echo "$usage_data" | jq -r '((.extra_usage.monthly_limit // 0) - (.extra_usage.used_credits // 0)) / 100' | awk '{printf "%.2f", $1}')
+            out+=" ${dim}(${reset}${white}${sym}${extra_cap_left} left${reset}${dim})${reset}"
         fi
     fi
 fi
