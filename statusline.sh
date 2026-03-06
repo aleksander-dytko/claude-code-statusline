@@ -360,7 +360,7 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
             extra_clr=$(extra_color "$extra_pct")
 
             out+="${sep}${white}extra${reset} ${extra_clr}${STATUSLINE_CURRENCY_SYMBOL}${extra_used}/${STATUSLINE_CURRENCY_SYMBOL}${extra_limit}${reset}"
-            out+=" ${dim}(${reset}${white}${STATUSLINE_CURRENCY_SYMBOL}${extra_balance} left${reset}${dim})${reset}"
+            out+=" ${dim}(${reset}${white}${STATUSLINE_CURRENCY_SYMBOL}${extra_balance} cap left${reset}${dim})${reset}"
         fi
     fi
 fi
