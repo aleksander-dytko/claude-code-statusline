@@ -3,14 +3,13 @@
 # https://github.com/aleksander-dytko/claude-code-statusline
 # MIT License — Aleksander Dytko 2026
 #
-# Displays: model | git repo@branch | context window | effort | 5h limit | 7d limit | extra usage
+# Displays: model | git repo@branch | context window | 5h limit | 7d limit | extra usage
 
 set -f  # disable globbing
 
 # ─── Configuration (override via environment variables) ─────────────────────
 STATUSLINE_SHOW_GIT="${STATUSLINE_SHOW_GIT:-true}"
 STATUSLINE_SHOW_CONTEXT="${STATUSLINE_SHOW_CONTEXT:-true}"
-STATUSLINE_SHOW_EFFORT="${STATUSLINE_SHOW_EFFORT:-true}"
 STATUSLINE_SHOW_SESSION="${STATUSLINE_SHOW_SESSION:-true}"
 STATUSLINE_SHOW_WEEKLY="${STATUSLINE_SHOW_WEEKLY:-true}"
 STATUSLINE_SHOW_EXTRA="${STATUSLINE_SHOW_EXTRA:-true}"
@@ -198,14 +197,6 @@ used_tokens=$(format_tokens "$current")
 total_tokens=$(format_tokens "$size")
 pct_used=$(( size > 0 ? current * 100 / size : 0 ))
 
-effort_level="high"
-if [ -n "$CLAUDE_CODE_EFFORT_LEVEL" ]; then
-    effort_level="$CLAUDE_CODE_EFFORT_LEVEL"
-elif [ -f "${HOME}/.claude/settings.json" ]; then
-    effort_val=$(jq -r '.effortLevel // empty' "${HOME}/.claude/settings.json" 2>/dev/null)
-    [ -n "$effort_val" ] && effort_level="$effort_val"
-fi
-
 # ─── Fetch / cache usage API ─────────────────────────────────────────────────
 cache_file="${STATUSLINE_CACHE_DIR}/statusline-usage-cache.json"
 lock_file="${STATUSLINE_CACHE_DIR}/statusline-fetch.lock"
@@ -280,16 +271,6 @@ if [ "${STATUSLINE_SHOW_CONTEXT}" = "true" ]; then
     out+="${sep}${orange}${used_tokens}/${total_tokens}${reset} ${dim}(${reset}${ctx_color}${pct_used}%${reset}${dim})${reset}"
 fi
 
-# Effort level
-if [ "${STATUSLINE_SHOW_EFFORT}" = "true" ]; then
-    out+="${sep}effort: "
-    case "$effort_level" in
-        low)    out+="${dim}low${reset}" ;;
-        medium) out+="${orange}med${reset}" ;;
-        *)      out+="${green}high${reset}" ;;
-    esac
-fi
-
 # Usage limits from API
 if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
 
@@ -322,7 +303,7 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
             extra_pct=$(echo "$usage_data" | jq -r '.extra_usage.utilization // 0' | awk '{printf "%.0f", $1}')
             extra_used=$(echo "$usage_data" | jq -r '.extra_usage.used_credits // 0' | awk '{printf "%.2f", $1/100}')
             extra_limit=$(echo "$usage_data" | jq -r '.extra_usage.monthly_limit // 0' | awk '{printf "%.2f", $1/100}')
-            extra_balance=$(echo "$usage_data" | jq -r '(.extra_usage.monthly_limit - .extra_usage.used_credits) / 100' | awk '{printf "%.2f", $1}')
+            extra_balance=$(echo "$usage_data" | jq -r '((.extra_usage.monthly_limit // 0) - (.extra_usage.used_credits // 0)) / 100' | awk '{printf "%.2f", $1}')
             extra_color=$(extra_color "$extra_pct")
 
             # ⚡ indicator when overage is being consumed

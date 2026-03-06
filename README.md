@@ -11,9 +11,9 @@ An enhanced status line for [Claude Code](https://github.com/anthropics/claude-c
 ## What it shows
 
 ```
-Claude Sonnet 4.6 | project@main (+10 -3) | 45k/200k (22%) | effort: high | 5h 45% @4:30pm | 7d 100% @mar 6, 11:00am | extra ⚡ $10.90/$20.00 ($9.10 left)
-│                   │                        │                 │              │                  │                           │
-model               git branch + diff        context window    effort level   5-hour session     7-day weekly               overage billing
+Claude Sonnet 4.6 | project@main (+10 -3) | 45k/200k (22%) | 5h 45% @4:30pm | 7d 100% @mar 6, 11:00am | extra ⚡ $10.90/$20.00 ($9.10 left)
+│                   │                        │                 │                  │                           │
+model               git branch + diff        context window    5-hour session     7-day weekly               overage billing
 ```
 
 ### Color coding
@@ -67,7 +67,6 @@ All settings are optional environment variables. Add them to your shell profile 
 |----------|---------|-------------|
 | `STATUSLINE_SHOW_GIT` | `true` | Show git repo, branch, and diff |
 | `STATUSLINE_SHOW_CONTEXT` | `true` | Show context window token usage |
-| `STATUSLINE_SHOW_EFFORT` | `true` | Show effort level |
 | `STATUSLINE_SHOW_SESSION` | `true` | Show 5-hour session limit |
 | `STATUSLINE_SHOW_WEEKLY` | `true` | Show 7-day weekly limit |
 | `STATUSLINE_SHOW_EXTRA` | `true` | Show extra usage / overage billing |
@@ -84,7 +83,6 @@ export STATUSLINE_CURRENCY_SYMBOL='€'
 
 # Minimal — model + context only
 export STATUSLINE_SHOW_GIT=false
-export STATUSLINE_SHOW_EFFORT=false
 export STATUSLINE_SHOW_SESSION=false
 export STATUSLINE_SHOW_WEEKLY=false
 export STATUSLINE_SHOW_EXTRA=false

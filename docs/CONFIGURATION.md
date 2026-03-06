@@ -38,19 +38,6 @@ export STATUSLINE_SHOW_CONTEXT=false
 
 ---
 
-### `STATUSLINE_SHOW_EFFORT`
-**Default:** `true`
-
-Show the effort level: `effort: high`, `effort: med`, or `effort: low`.
-
-The value is read from the `CLAUDE_CODE_EFFORT_LEVEL` environment variable or the `effortLevel` field in `~/.claude/settings.json`.
-
-```bash
-export STATUSLINE_SHOW_EFFORT=false
-```
-
----
-
 ### `STATUSLINE_SHOW_SESSION`
 **Default:** `true`
 
