@@ -181,6 +181,29 @@ format_reset_time() {
     esac
 }
 
+# Format time remaining until reset: epoch → "in 2h 24min", "in 47min", "soon"
+format_countdown() {
+    local iso_str="$1"
+    [ -z "$iso_str" ] || [ "$iso_str" = "null" ] && return
+
+    local epoch
+    epoch=$(iso_to_epoch "$iso_str") || return
+
+    local now diff hours mins
+    now=$(date +%s)
+    diff=$(( epoch - now ))
+
+    [ "$diff" -le 0 ] && echo "soon" && return
+
+    hours=$(( diff / 3600 ))
+    mins=$(( (diff % 3600) / 60 ))
+
+    if   [ "$hours" -ge 24 ]; then echo "in $(( hours / 24 ))d"
+    elif [ "$hours" -ge 1 ];  then echo "in ${hours}h ${mins}min"
+    else echo "in ${mins}min"
+    fi
+}
+
 # ─── Parse stdin JSON ────────────────────────────────────────────────────────
 model_name=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 cwd=$(echo "$input" | jq -r '.cwd // empty')
@@ -248,12 +271,17 @@ out=""
 # Model name
 out+="${blue}${model_name}${reset}"
 
-# Git: project@branch +adds/-dels
+# Git: project[wt]@branch +adds/-dels
 if [ "${STATUSLINE_SHOW_GIT}" = "true" ] && [ -n "$cwd" ]; then
     display_dir="${cwd##*/}"
     git_branch=$(git -C "${cwd}" rev-parse --abbrev-ref HEAD 2>/dev/null)
     out+="${sep}${cyan}${display_dir}${reset}"
     if [ -n "$git_branch" ]; then
+        # Detect linked git worktree (e.g. created by Claude Code's isolation: "worktree")
+        git_dir=$(git -C "${cwd}" rev-parse --git-dir 2>/dev/null)
+        if [[ "$git_dir" == *"/worktrees/"* ]]; then
+            out+="${dim}[wt]${reset}"
+        fi
         out+="${dim}@${reset}${green}${git_branch}${reset}"
         # Use HEAD diff to include both staged and unstaged changes
         git_stat=$(git -C "${cwd}" diff HEAD --numstat 2>/dev/null | awk '{a+=$1; d+=$2} END {if (a+d>0) printf "+%d -%d", a, d}')
@@ -274,29 +302,54 @@ fi
 # Usage limits from API
 if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
 
+    five_pct=$(echo "$usage_data" | jq -r '.five_hour.utilization // 0' | awk '{printf "%.0f", $1}')
+    five_reset_iso=$(echo "$usage_data" | jq -r '.five_hour.resets_at // empty')
+    seven_pct=$(echo "$usage_data" | jq -r '.seven_day.utilization // 0' | awk '{printf "%.0f", $1}')
+    seven_reset_iso=$(echo "$usage_data" | jq -r '.seven_day.resets_at // empty')
+
+    # ⚡ fires on whichever limit is currently causing overflow (real-time signal)
+    five_on_extra=false
+    seven_on_extra=false
+    [ "$five_pct" -ge 100 ] && five_on_extra=true
+    [ "$seven_pct" -ge 100 ] && seven_on_extra=true
+
     # 5-hour session limit
     if [ "${STATUSLINE_SHOW_SESSION}" = "true" ]; then
-        five_pct=$(echo "$usage_data" | jq -r '.five_hour.utilization // 0' | awk '{printf "%.0f", $1}')
-        five_reset_iso=$(echo "$usage_data" | jq -r '.five_hour.resets_at // empty')
-        five_reset=$(format_reset_time "$five_reset_iso" "time")
         five_color=$(plan_color "$five_pct")
+        five_label="5h"
+        $five_on_extra && five_label="⚡ 5h"
 
-        out+="${sep}${white}5h${reset} ${five_color}${five_pct}%${reset}"
-        [ -n "$five_reset" ] && out+=" ${dim}@${five_reset}${reset}"
+        out+="${sep}${white}${five_label}${reset} ${five_color}${five_pct}%${reset}"
+        if $five_on_extra; then
+            # At limit: show countdown to reset (more actionable than wall clock)
+            five_countdown=$(format_countdown "$five_reset_iso")
+            [ -n "$five_countdown" ] && out+=" ${dim}${five_countdown}${reset}"
+        else
+            # Under limit: show wall clock reset time
+            five_reset=$(format_reset_time "$five_reset_iso" "time")
+            [ -n "$five_reset" ] && out+=" ${dim}@${five_reset}${reset}"
+        fi
     fi
 
     # 7-day weekly limit
     if [ "${STATUSLINE_SHOW_WEEKLY}" = "true" ]; then
-        seven_pct=$(echo "$usage_data" | jq -r '.seven_day.utilization // 0' | awk '{printf "%.0f", $1}')
-        seven_reset_iso=$(echo "$usage_data" | jq -r '.seven_day.resets_at // empty')
-        seven_reset=$(format_reset_time "$seven_reset_iso" "datetime")
         seven_color=$(plan_color "$seven_pct")
+        seven_label="7d"
+        $seven_on_extra && seven_label="⚡ 7d"
 
-        out+="${sep}${white}7d${reset} ${seven_color}${seven_pct}%${reset}"
-        [ -n "$seven_reset" ] && out+=" ${dim}@${seven_reset}${reset}"
+        out+="${sep}${white}${seven_label}${reset} ${seven_color}${seven_pct}%${reset}"
+        if $seven_on_extra; then
+            # At limit: show countdown to reset
+            seven_countdown=$(format_countdown "$seven_reset_iso")
+            [ -n "$seven_countdown" ] && out+=" ${dim}${seven_countdown}${reset}"
+        else
+            # Under limit: show wall clock reset time
+            seven_reset=$(format_reset_time "$seven_reset_iso" "datetime")
+            [ -n "$seven_reset" ] && out+=" ${dim}@${seven_reset}${reset}"
+        fi
     fi
 
-    # Extra usage (overage billing)
+    # Extra usage — monthly billing summary (shown when extra is enabled)
     if [ "${STATUSLINE_SHOW_EXTRA}" = "true" ]; then
         extra_enabled=$(echo "$usage_data" | jq -r '.extra_usage.is_enabled // false')
         if [ "$extra_enabled" = "true" ]; then
@@ -304,15 +357,9 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
             extra_used=$(echo "$usage_data" | jq -r '.extra_usage.used_credits // 0' | awk '{printf "%.2f", $1/100}')
             extra_limit=$(echo "$usage_data" | jq -r '.extra_usage.monthly_limit // 0' | awk '{printf "%.2f", $1/100}')
             extra_balance=$(echo "$usage_data" | jq -r '((.extra_usage.monthly_limit // 0) - (.extra_usage.used_credits // 0)) / 100' | awk '{printf "%.2f", $1}')
-            extra_color=$(extra_color "$extra_pct")
+            extra_clr=$(extra_color "$extra_pct")
 
-            # ⚡ indicator when overage is being consumed
-            extra_active=""
-            if echo "$usage_data" | jq -e '.extra_usage.used_credits > 0' >/dev/null 2>&1; then
-                extra_active=" ⚡"
-            fi
-
-            out+="${sep}${white}extra${reset}${extra_active} ${extra_color}${STATUSLINE_CURRENCY_SYMBOL}${extra_used}/${STATUSLINE_CURRENCY_SYMBOL}${extra_limit}${reset}"
+            out+="${sep}${white}extra${reset} ${extra_clr}${STATUSLINE_CURRENCY_SYMBOL}${extra_used}/${STATUSLINE_CURRENCY_SYMBOL}${extra_limit}${reset}"
             out+=" ${dim}(${reset}${white}${STATUSLINE_CURRENCY_SYMBOL}${extra_balance} left${reset}${dim})${reset}"
         fi
     fi
