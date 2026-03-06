@@ -232,8 +232,11 @@ if [ -f "$cache_file" ]; then
     now=$(date +%s)
     cache_age=$(( now - cache_mtime ))
     if [ "$cache_age" -lt "$STATUSLINE_CACHE_TTL" ]; then
-        needs_refresh=false
-        usage_data=$(cat "$cache_file" 2>/dev/null)
+        cached=$(cat "$cache_file" 2>/dev/null)
+        if echo "$cached" | jq -e '.five_hour' >/dev/null 2>&1; then
+            needs_refresh=false
+            usage_data="$cached"
+        fi
     fi
 fi
 
@@ -247,7 +250,7 @@ if $needs_refresh; then
             -H "anthropic-beta: oauth-2025-04-20" \
             -H "User-Agent: claude-code-statusline/1.0.0" \
             "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
-        if [ -n "$response" ] && echo "$response" | jq . >/dev/null 2>&1; then
+        if [ -n "$response" ] && echo "$response" | jq -e '.five_hour' >/dev/null 2>&1; then
             usage_data="$response"
             echo "$response" > "$cache_file"
         fi
@@ -291,7 +294,7 @@ if [ "${STATUSLINE_SHOW_CONTEXT}" = "true" ]; then
 fi
 
 # Usage limits from API
-if [ -n "$usage_data" ] && echo "$usage_data" | jq -e . >/dev/null 2>&1; then
+if [ -n "$usage_data" ] && echo "$usage_data" | jq -e '.five_hour' >/dev/null 2>&1; then
 
     five_pct=$(echo "$usage_data" | jq -r '.five_hour.utilization // 0' | awk '{printf "%.0f", $1}')
     five_reset_iso=$(echo "$usage_data" | jq -r '.five_hour.resets_at // empty')
