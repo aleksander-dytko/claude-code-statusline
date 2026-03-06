@@ -13,7 +13,7 @@ STATUSLINE_SHOW_CONTEXT="${STATUSLINE_SHOW_CONTEXT:-true}"
 STATUSLINE_SHOW_SESSION="${STATUSLINE_SHOW_SESSION:-true}"
 STATUSLINE_SHOW_WEEKLY="${STATUSLINE_SHOW_WEEKLY:-true}"
 STATUSLINE_SHOW_EXTRA="${STATUSLINE_SHOW_EXTRA:-true}"
-STATUSLINE_CACHE_TTL="${STATUSLINE_CACHE_TTL:-20}"           # seconds between API fetches
+STATUSLINE_CACHE_TTL="${STATUSLINE_CACHE_TTL:-60}"           # seconds between API fetches
 STATUSLINE_CACHE_DIR="${STATUSLINE_CACHE_DIR:-/tmp/claude}"  # cache directory
 STATUSLINE_CURRENCY_SYMBOL="${STATUSLINE_CURRENCY_SYMBOL:-\$}"  # set to € for Europe
 # ────────────────────────────────────────────────────────────────────────────
@@ -222,25 +222,28 @@ pct_used=$(( size > 0 ? current * 100 / size : 0 ))
 
 # ─── Fetch / cache usage API ─────────────────────────────────────────────────
 cache_file="${STATUSLINE_CACHE_DIR}/statusline-usage-cache.json"
+attempt_stamp="${STATUSLINE_CACHE_DIR}/statusline-fetch-attempt"
 mkdir -p "${STATUSLINE_CACHE_DIR}"
 
-needs_refresh=true
+now=$(date +%s)
 usage_data=""
 
+# Always load valid cached data for display (even if stale — shown while refreshing)
 if [ -f "$cache_file" ]; then
-    cache_mtime=$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null)
-    now=$(date +%s)
-    cache_age=$(( now - cache_mtime ))
-    if [ "$cache_age" -lt "$STATUSLINE_CACHE_TTL" ]; then
-        cached=$(cat "$cache_file" 2>/dev/null)
-        if echo "$cached" | jq -e '.five_hour' >/dev/null 2>&1; then
-            needs_refresh=false
-            usage_data="$cached"
-        fi
-    fi
+    cached=$(cat "$cache_file" 2>/dev/null)
+    echo "$cached" | jq -e '.five_hour' >/dev/null 2>&1 && usage_data="$cached"
+fi
+
+# Throttle fetches: only attempt once per TTL period regardless of success/failure
+needs_refresh=true
+if [ -f "$attempt_stamp" ]; then
+    stamp_mtime=$(stat -c %Y "$attempt_stamp" 2>/dev/null || stat -f %m "$attempt_stamp" 2>/dev/null)
+    stamp_age=$(( now - stamp_mtime ))
+    [ "$stamp_age" -lt "$STATUSLINE_CACHE_TTL" ] && needs_refresh=false
 fi
 
 if $needs_refresh; then
+    touch "$attempt_stamp"
     token=$(get_oauth_token)
     if [ -n "$token" ] && [ "$token" != "null" ]; then
         response=$(curl -s --max-time 8 \
@@ -255,7 +258,6 @@ if $needs_refresh; then
             echo "$response" > "$cache_file"
         fi
     fi
-    [ -z "$usage_data" ] && [ -f "$cache_file" ] && usage_data=$(cat "$cache_file" 2>/dev/null)
 fi
 
 # ─── Build output ────────────────────────────────────────────────────────────
