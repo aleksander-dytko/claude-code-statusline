@@ -159,6 +159,36 @@ rm /tmp/claude/statusline-fetch.lock
 
 ---
 
+## Usage shows stale data or 5h/7d sections are missing
+
+**Symptom:** The 5h/7d values are behind what the Claude app shows, or those sections are blank entirely.
+
+This is usually caused by one of two things:
+
+**1. Rate limiting** — The Anthropic API rate-limited a recent fetch. The script uses exponential backoff: 30s → 60s → 120s → 240s → 300s (capped). During backoff it shows the last good cached value. The `statusline-ratelimited` file stores the consecutive hit count.
+
+**2. A stale lock file** — A previous session crashed while holding the fetch lock, blocking all future fetches.
+
+**Fix (run all three):**
+```bash
+rm -f /tmp/claude/statusline-usage-cache.json \
+      /tmp/claude/statusline-fetch-attempt \
+      /tmp/claude/statusline-ratelimited
+rmdir /tmp/claude/statusline-fetch.lock 2>/dev/null
+```
+
+Wait a few seconds for the next statusline render to fetch fresh data.
+
+**Why rate limiting happens:** If multiple terminal tabs all open simultaneously, they can all try to fetch before any of them updates the shared lock — triggering a burst of API calls. The `statusline-fetch.lock` directory (atomic mkdir) prevents this in normal operation, but a crashed session can leave the lock behind.
+
+---
+
+## Balance not showing
+
+The `bal` field is not available via the Anthropic OAuth API (`api.anthropic.com/api/oauth/usage`). Balance data is not returned in the API response, so this segment is not displayed.
+
+---
+
 ## Reporting issues
 
 Open an issue at https://github.com/aleksander-dytko/claude-code-statusline/issues with:

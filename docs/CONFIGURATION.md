@@ -28,12 +28,48 @@ export STATUSLINE_SHOW_GIT=false  # hide git segment
 ### `STATUSLINE_SHOW_CONTEXT`
 **Default:** `true`
 
-Show the context window segment: `45k/200k (22%)`.
+Show the context window segment: `ctx 45k/200k (22%)`.
 
 Percentage is color-coded: green < 50%, yellow 50–75%, red ≥ 75%.
 
 ```bash
 export STATUSLINE_SHOW_CONTEXT=false
+```
+
+---
+
+### `STATUSLINE_SPLIT_LINES`
+**Default:** `false`
+
+When `true`, splits the status line into two rows:
+
+```
+Line 1 (stdin — always fresh):   Sonnet 4.6 | project@main (+10 -3) | ctx 45k/200k (22%) | cost $0.07
+Line 2 (OAuth API — cached):     5h 45% @4:30pm | 7d 78% @mar 14, 11am | extra ⚡ €17.30/€20 (€2.70 left)
+```
+
+Useful when terminal windows are narrow. Line 2 is only emitted when API data is available — no blank line appears during cache warm-up.
+
+```bash
+export STATUSLINE_SPLIT_LINES=true
+```
+
+Fish shell:
+```fish
+set -gx STATUSLINE_SPLIT_LINES true
+```
+
+---
+
+### `STATUSLINE_SHOW_SESSION_COST`
+**Default:** `true`
+
+Show the session cost segment: `cost $0.07`.
+
+The value comes from stdin (`cost.total_cost_usd`) — no API call required. Uses `STATUSLINE_CURRENCY_SYMBOL` as the prefix.
+
+```bash
+export STATUSLINE_SHOW_SESSION_COST=false
 ```
 
 ---
@@ -71,7 +107,7 @@ export STATUSLINE_SHOW_WEEKLY=false
 
 Show the extra usage / overage billing section: `extra ⚡ $10.90/$20.00 ($9.10 left)`.
 
-Only shown when extra usage is enabled on your account (`is_enabled: true`). The ⚡ indicator appears when you have active spend (> $0 charged). The "left" amount shows how much of your monthly limit remains.
+Only shown when extra usage is enabled on your account (`is_enabled: true`). The ⚡ indicator appears when a plan limit (5h or 7d) is at 100% and extra billing is actively being consumed. The "left" amount shows how much of your monthly limit remains.
 
 Extra usage color: green < 50% of limit, yellow 50–80%, red ≥ 80%.
 
@@ -84,7 +120,7 @@ export STATUSLINE_SHOW_EXTRA=false
 ### `STATUSLINE_CURRENCY_SYMBOL`
 **Default:** `$`
 
-Currency prefix for extra usage amounts. Set to `€` if your account bills in euros.
+Currency prefix for session cost, extra usage amounts, and any future monetary fields. Set to `€` if your account bills in euros.
 
 ```bash
 export STATUSLINE_CURRENCY_SYMBOL='€'
@@ -93,9 +129,9 @@ export STATUSLINE_CURRENCY_SYMBOL='€'
 ---
 
 ### `STATUSLINE_CACHE_TTL`
-**Default:** `20`
+**Default:** `60`
 
-Seconds between API fetches for usage data. Higher values reduce API calls but mean slightly stale usage numbers.
+Seconds between API fetches for usage data. Higher values reduce API calls but mean slightly stale usage numbers. The cache is shared across all terminal tabs — only one API call is made per TTL period regardless of how many sessions are open.
 
 ```bash
 export STATUSLINE_CACHE_TTL=120  # refresh every 2 minutes

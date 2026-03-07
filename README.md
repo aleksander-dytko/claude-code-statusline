@@ -1,6 +1,6 @@
 # claude-code-statusline
 
-An enhanced status line for [Claude Code](https://github.com/anthropics/claude-code) that shows model, git context, token usage, and live plan limits — all in one line.
+An enhanced status line for [Claude Code](https://github.com/anthropics/claude-code) that shows model, git context, token usage, session cost, and live plan limits — all in one terminal line.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Shell: bash](https://img.shields.io/badge/shell-bash-green.svg)
@@ -8,28 +8,21 @@ An enhanced status line for [Claude Code](https://github.com/anthropics/claude-c
 
 ---
 
-## What it shows
+## What it solves
 
-```
-Claude Sonnet 4.6 | project@main (+10 -3) | 45k/200k (22%) | 5h 45% @4:30pm | 7d 100% @mar 6, 11:00am | extra ⚡ $10.90/$20.00 ($9.10 left)
-│                   │                        │                 │                  │                           │
-model               git branch + diff        context window    5-hour session     7-day weekly               overage billing
-```
-
-### Color coding
-
-| Section | Green | Yellow | Red |
-|---------|-------|--------|-----|
-| 5h session | < 70% | 70–90% | ≥ 90% |
-| 7d weekly  | < 70% | 70–90% | ≥ 90% |
-| Context window | < 50% | 50–75% | ≥ 75% |
-| Extra usage spend | < 50% of limit | 50–80% | ≥ 80% |
-
-**⚡** appears next to "extra" when overage billing is active (spend > $0).
+Claude Code doesn't surface usage data inline — you have to switch to the web app to check your 5-hour session limit, weekly limit, or billing. This script puts all of that directly in the status line. No app switching, no manual token management, no extra setup.
 
 ---
 
 ## Install
+
+**Option 1 — Tell Claude Code to do it:**
+
+```
+Set up claude-code-statusline from https://github.com/aleksander-dytko/claude-code-statusline
+```
+
+**Option 2 — One-liner:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aleksander-dytko/claude-code-statusline/main/install.sh | bash
@@ -47,15 +40,40 @@ Then **restart Claude Code**. That's it — no API keys, no manual token setup.
 
 ---
 
-## How it works
+## What it shows
 
-Claude Code calls the status line script on every render, passing session context as JSON on stdin. The script reads the model name, context window usage, and current working directory from that JSON.
+```
+Sonnet 4.6 | project@main (+10 -3) | ctx 45k/200k (22%) | cost $0.07 | 5h 45% @4:30pm | 7d 78% @mar 14, 11am | extra ⚡ €17.30/€20 (€2.70 left)
+```
 
-Git information (branch name and diff stats) comes from running `git` commands against the current directory.
+| Segment | Label | Source | Example |
+|---------|-------|--------|---------|
+| Model | none | stdin | `Sonnet 4.6` |
+| Git | `dir@branch` | git | `project@main (+10 -3)` |
+| Context window | `ctx` | stdin | `ctx 45k/200k (22%)` |
+| Session cost | `cost` | stdin | `cost $0.07` |
+| 5h session limit | `5h` or `⚡ 5h` | OAuth API | `5h 45% @4:30pm` |
+| 7d weekly limit | `7d` or `⚡ 7d` | OAuth API | `7d 78% @mar 14, 11am` |
+| Extra usage | `extra` or `extra ⚡` | OAuth API | `extra ⚡ €17.30/€20 (€2.70 left)` |
 
-Usage limits (5-hour session, 7-day weekly, and extra overage) are fetched from the Anthropic API at `api.anthropic.com/api/oauth/usage`. The script auto-discovers your OAuth token from the macOS Keychain, a Linux credentials file, or the `CLAUDE_CODE_OAUTH_TOKEN` environment variable — the same token Claude Code itself uses. Responses are cached for 60 seconds to avoid redundant requests.
+> **Worktrees**: When in a Claude Code worktree, the git segment shows `project[wt:name]@branch`.
 
-When multiple Claude Code sessions start simultaneously, a lock file prevents concurrent API fetches — only one session fetches while others wait for the shared cache.
+---
+
+## Color coding
+
+| Segment | Green | Yellow | Red |
+|---------|-------|--------|-----|
+| Context window | < 50% | 50–75% | ≥ 75% |
+| 5h session | < 70% | 70–90% | ≥ 90% |
+| 7d weekly | < 70% | 70–90% | ≥ 90% |
+| Extra usage spend | < 50% of limit | 50–80% | ≥ 80% |
+| Session cost | white (informational) | — | — |
+
+**⚡ rules:**
+- `⚡ 5h` / `⚡ 7d` — that limit is at 100%, currently routing to extra billing
+- `extra ⚡` — extra usage is actively being consumed because a plan limit is hit
+- When at limit: shows `resets in Xh Ymin` countdown instead of wall clock
 
 ---
 
@@ -67,6 +85,8 @@ All settings are optional environment variables. Add them to your shell profile 
 |----------|---------|-------------|
 | `STATUSLINE_SHOW_GIT` | `true` | Show git repo, branch, and diff |
 | `STATUSLINE_SHOW_CONTEXT` | `true` | Show context window token usage |
+| `STATUSLINE_SHOW_SESSION_COST` | `true` | Show session cost from stdin |
+| `STATUSLINE_SPLIT_LINES` | `false` | Split into 2 rows (stdin segments / API segments) |
 | `STATUSLINE_SHOW_SESSION` | `true` | Show 5-hour session limit |
 | `STATUSLINE_SHOW_WEEKLY` | `true` | Show 7-day weekly limit |
 | `STATUSLINE_SHOW_EXTRA` | `true` | Show extra usage / overage billing |
@@ -83,6 +103,7 @@ export STATUSLINE_CURRENCY_SYMBOL='€'
 
 # Minimal — model + context only
 export STATUSLINE_SHOW_GIT=false
+export STATUSLINE_SHOW_SESSION_COST=false
 export STATUSLINE_SHOW_SESSION=false
 export STATUSLINE_SHOW_WEEKLY=false
 export STATUSLINE_SHOW_EXTRA=false
@@ -90,6 +111,18 @@ export STATUSLINE_SHOW_EXTRA=false
 # Refresh usage data every 2 minutes instead of 1
 export STATUSLINE_CACHE_TTL=120
 ```
+
+---
+
+## How it works
+
+Claude Code calls the status line script on every render, passing session context as JSON on stdin. The script reads the model name, context window usage, session cost, and current working directory from that JSON — no API call required for these segments.
+
+Git information (branch name and diff stats) comes from running `git` commands against the current directory. Worktree names are read directly from stdin when available.
+
+Usage limits (5-hour session, 7-day weekly, and extra overage) are fetched from the Anthropic API at `api.anthropic.com/api/oauth/usage`. The script auto-discovers your OAuth token from the macOS Keychain, a Linux credentials file, or the `CLAUDE_CODE_OAUTH_TOKEN` environment variable — the same token Claude Code itself uses. Responses are cached for 60 seconds so all terminal tabs share one API call.
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full configuration reference.
 
 ---
 
