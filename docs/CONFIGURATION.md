@@ -68,6 +68,8 @@ Show the session cost segment: `cost $0.07`.
 
 The value comes from stdin (`cost.total_cost_usd`) — no API call required. Uses `STATUSLINE_CURRENCY_SYMBOL` as the prefix.
 
+**Note:** This shows the equivalent API cost of your token usage. Pro and Max subscribers are not charged this amount — usage is included in your subscription. The cost is informational only.
+
 ```bash
 export STATUSLINE_SHOW_SESSION_COST=false
 ```
