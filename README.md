@@ -6,6 +6,8 @@ An enhanced status line for [Claude Code](https://github.com/anthropics/claude-c
 ![Shell: bash](https://img.shields.io/badge/shell-bash-green.svg)
 ![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)
 
+![statusline screenshot](docs/screenshot.png)
+
 ---
 
 ## What it solves
