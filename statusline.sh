@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # claude-code-statusline — Enhanced status line for Claude Code
 # https://github.com/aleksander-dytko/claude-code-statusline
 # MIT License — Aleksander Dytko 2026
@@ -6,6 +6,13 @@
 # Displays: model | git repo@branch | ctx | cost | 5h limit | 7d limit | extra usage
 
 set -f  # disable globbing
+
+# Detect stat variant once (GNU vs BSD) to avoid repeated fallback forks
+if stat -c %Y /dev/null >/dev/null 2>&1; then
+    _stat_mtime() { stat -c %Y "$1" 2>/dev/null; }
+else
+    _stat_mtime() { stat -f %m "$1" 2>/dev/null; }
+fi
 
 # ─── Configuration (override via environment variables) ─────────────────────
 STATUSLINE_SHOW_GIT="${STATUSLINE_SHOW_GIT:-true}"
@@ -270,7 +277,7 @@ if [ -f "$ratelimit_stamp" ]; then
     rl_count=$(cat "$ratelimit_stamp" 2>/dev/null | tr -d '[:space:]')
     [[ "$rl_count" =~ ^[0-9]+$ ]] || rl_count=1
     [ "$rl_count" -lt 1 ] && rl_count=1
-    rl_mtime=$(stat -c %Y "$ratelimit_stamp" 2>/dev/null || stat -f %m "$ratelimit_stamp" 2>/dev/null)
+    rl_mtime=$(_stat_mtime "$ratelimit_stamp" || echo 0)
     rl_backoff=$(( 30 * (1 << (rl_count - 1)) ))   # 30 * 2^(n-1)
     [ "$rl_backoff" -gt 300 ] && rl_backoff=300     # cap at 5 min
     [ $(( now - rl_mtime )) -lt "$rl_backoff" ] && ratelimited=true
@@ -281,14 +288,25 @@ needs_refresh=false
 if ! $ratelimited; then
     needs_refresh=true
     if [ -f "$attempt_stamp" ]; then
-        stamp_mtime=$(stat -c %Y "$attempt_stamp" 2>/dev/null || stat -f %m "$attempt_stamp" 2>/dev/null)
+        stamp_mtime=$(_stat_mtime "$attempt_stamp" || echo 0)
         [ $(( now - stamp_mtime )) -lt "$STATUSLINE_CACHE_TTL" ] && needs_refresh=false
     fi
 fi
 
 if $needs_refresh; then
     # Atomic lock: mkdir is POSIX-atomic — only one session fetches at a time
+    # If mkdir fails, check for stale lock (crashed holder) and retry once
+    got_lock=false
     if mkdir "$lock_dir" 2>/dev/null; then
+        got_lock=true
+    else
+        lock_mtime=$(_stat_mtime "$lock_dir" || echo 0)
+        if [ $(( now - lock_mtime )) -gt 30 ]; then
+            rmdir "$lock_dir" 2>/dev/null && mkdir "$lock_dir" 2>/dev/null && got_lock=true
+        fi
+    fi
+    if $got_lock; then
+        trap 'rmdir "$lock_dir" 2>/dev/null' INT TERM EXIT
         touch "$attempt_stamp"
         token=$(get_oauth_token)
         if [ -n "$token" ] && [ "$token" != "null" ]; then
@@ -308,6 +326,7 @@ if $needs_refresh; then
             fi
         fi
         rmdir "$lock_dir" 2>/dev/null
+        trap - INT TERM EXIT
     fi
     # If mkdir failed, another session holds the lock — silently use cached data
 fi
@@ -361,7 +380,7 @@ if [ "${STATUSLINE_SHOW_SESSION_COST}" = "true" ]; then
 fi
 
 # Usage limits from API
-if [ -n "$usage_data" ] && echo "$usage_data" | jq -e '.five_hour' >/dev/null 2>&1; then
+if [ -n "$usage_data" ]; then
 
     five_pct=$(echo "$usage_data" | jq -r '.five_hour.utilization // 0' | awk '{printf "%.0f", $1}')
     five_reset_iso=$(echo "$usage_data" | jq -r '.five_hour.resets_at // empty')
@@ -420,7 +439,9 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e '.five_hour' >/dev/null 2>
             sym="${STATUSLINE_CURRENCY_SYMBOL}"
             extra_cap_left=$(echo "$usage_data" | jq -r '((.extra_usage.monthly_limit // 0) - (.extra_usage.used_credits // 0)) / 100' | awk '{printf "%.2f", $1}')
 
-            seg="${white}extra${reset} ${extra_clr}${sym}${extra_used}/${sym}${extra_limit}${reset}"
+            extra_label="extra"
+            { $five_on_extra || $seven_on_extra; } && extra_label="extra ⚡"
+            seg="${white}${extra_label}${reset} ${extra_clr}${sym}${extra_used}/${sym}${extra_limit}${reset}"
             seg+=" ${dim}(${reset}${white}${sym}${extra_cap_left} left${reset}${dim})${reset}"
             append2 "$seg"
         fi
@@ -428,8 +449,11 @@ if [ -n "$usage_data" ] && echo "$usage_data" | jq -e '.five_hour' >/dev/null 2>
 fi
 
 # When rate-limited with no cached data, show a dim indicator instead of silence
+# Only if at least one API section is enabled (otherwise out2 is empty by design)
 if [ -z "$out2" ] && $ratelimited; then
-    append2 "${dim}limits unavailable (rate limited)${reset}"
+    if [ "${STATUSLINE_SHOW_SESSION}" = "true" ] || [ "${STATUSLINE_SHOW_WEEKLY}" = "true" ] || [ "${STATUSLINE_SHOW_EXTRA}" = "true" ]; then
+        append2 "${dim}limits unavailable (rate limited)${reset}"
+    fi
 fi
 
 # ─── Render ──────────────────────────────────────────────────────────────────

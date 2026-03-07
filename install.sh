@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # claude-code-statusline installer
 # https://github.com/aleksander-dytko/claude-code-statusline
 #
@@ -30,7 +30,7 @@ command -v bash >/dev/null 2>&1 || error "bash is required."
 
 # ─── Claude directory ─────────────────────────────────────────────────────────
 if [ ! -d "$CLAUDE_DIR" ]; then
-    warn "~/.claude directory not found. Is Claude Code installed?"
+    warn "$HOME/.claude directory not found. Is Claude Code installed?"
     printf "Create ~/.claude and continue? [y/N] "
     read -r answer
     [ "$answer" = "y" ] || [ "$answer" = "Y" ] || error "Aborted."
@@ -66,7 +66,7 @@ printf "\n"
 printf "  %bRestart Claude Code%b to activate the status line.\n" "${GREEN}" "${NC}"
 printf "\n"
 printf "  Status line will show:\n"
-printf "    model | git repo@branch | context window | effort | 5h limit | 7d limit | extra usage\n"
+printf "    model | git repo@branch | context window | cost | 5h limit | 7d limit | extra usage\n"
 printf "\n"
 printf "  Customize with environment variables:\n"
 printf "    export STATUSLINE_CURRENCY_SYMBOL='€'   # for European billing\n"

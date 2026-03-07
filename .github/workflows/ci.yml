@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+      - name: Lint statusline.sh
+        run: shellcheck -s bash -S warning statusline.sh
+      - name: Lint install.sh
+        run: shellcheck -s bash -S warning install.sh
+
+  test-macos:
+    name: Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: brew install jq
+      - name: Smoke test — empty input
+        run: |
+          result=$(echo '' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == "Claude" ]] || { echo "FAIL: expected 'Claude'"; exit 1; }
+      - name: Smoke test — minimal JSON
+        run: |
+          result=$(echo '{"model":{"display_name":"Sonnet 4.6"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == *"Sonnet 4.6"* ]] || { echo "FAIL: model name missing"; exit 1; }
+          [[ "$result" == *"50k/200k"* ]] || { echo "FAIL: context window missing"; exit 1; }
+      - name: Smoke test — session cost
+        run: |
+          result=$(echo '{"model":{"display_name":"Opus 4.6"},"cost":{"total_cost_usd":1.23},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == *"1.23"* ]] || { echo "FAIL: session cost missing"; exit 1; }
+      - name: Smoke test — git disabled
+        run: |
+          result=$(echo '{"model":{"display_name":"Haiku 4.5"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | STATUSLINE_SHOW_GIT=false bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" != *"@"* ]] || { echo "FAIL: git should be hidden"; exit 1; }
+
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get install -y jq
+      - name: Smoke test — empty input
+        run: |
+          result=$(echo '' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == "Claude" ]] || { echo "FAIL: expected 'Claude'"; exit 1; }
+      - name: Smoke test — minimal JSON
+        run: |
+          result=$(echo '{"model":{"display_name":"Sonnet 4.6"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == *"Sonnet 4.6"* ]] || { echo "FAIL: model name missing"; exit 1; }
+          [[ "$result" == *"50k/200k"* ]] || { echo "FAIL: context window missing"; exit 1; }
+      - name: Smoke test — session cost
+        run: |
+          result=$(echo '{"model":{"display_name":"Opus 4.6"},"cost":{"total_cost_usd":1.23},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" == *"1.23"* ]] || { echo "FAIL: session cost missing"; exit 1; }
+      - name: Smoke test — git disabled
+        run: |
+          result=$(echo '{"model":{"display_name":"Haiku 4.5"},"context_window":{"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}' | STATUSLINE_SHOW_GIT=false bash statusline.sh)
+          echo "Output: $result"
+          [[ "$result" != *"@"* ]] || { echo "FAIL: git should be hidden"; exit 1; }

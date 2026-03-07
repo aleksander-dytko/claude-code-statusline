@@ -139,7 +139,7 @@ git_stat=$(git -C "${cwd}" diff --numstat 2>/dev/null | ...)
 
 ## Status line renders slowly
 
-The API fetch has a 10-second timeout. If the Anthropic API is slow, it can block the status line render.
+The API fetch has an 8-second timeout. If the Anthropic API is slow, it can block the status line render.
 
 Mitigations:
 - Increase `STATUSLINE_CACHE_TTL` to reduce fetch frequency
@@ -154,7 +154,7 @@ If you're frequently hitting slow API responses, check your network connection t
 The script uses a lock file at `$STATUSLINE_CACHE_DIR/statusline-fetch.lock` to prevent concurrent fetches when multiple sessions start simultaneously. If the lock file gets stuck (e.g., from a crashed session):
 
 ```bash
-rm /tmp/claude/statusline-fetch.lock
+rmdir /tmp/claude/statusline-fetch.lock 2>/dev/null
 ```
 
 ---
