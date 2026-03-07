@@ -33,6 +33,7 @@ Then **restart Claude Code**. That's it — no API keys, no manual token setup.
 ### Requirements
 
 - [Claude Code](https://github.com/anthropics/claude-code) (any version with `statusLine` support)
+- macOS or Linux (Windows requires [WSL](https://learn.microsoft.com/en-us/windows/wsl/install))
 - `bash`, `curl`, `jq`
   - macOS: `brew install jq`
   - Ubuntu/Debian: `sudo apt install jq`
