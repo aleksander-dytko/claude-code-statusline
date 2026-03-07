@@ -58,6 +58,8 @@ Sonnet 4.6 | project@main (+10 -3) | ctx 45k/200k (22%) | cost $0.07 | 5h 45% @4
 
 > **Worktrees**: When in a Claude Code worktree, the git segment shows `project[wt:name]@branch`.
 
+> **Session cost**: This shows the equivalent API cost of your session's token usage. **Pro and Max subscribers are not charged this amount** — your usage is included in your subscription. The cost is informational, showing what the same usage would cost at API rates. See [Anthropic's cost docs](https://docs.anthropic.com/en/docs/claude-code/costs) for details.
+
 ---
 
 ## Color coding
