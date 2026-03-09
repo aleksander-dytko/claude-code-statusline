@@ -1,40 +1,47 @@
 # claude-code-statusline
 
-An enhanced status line for [Claude Code](https://github.com/anthropics/claude-code) that shows model, git context, token usage, session cost, and live plan limits — all in one terminal line.
+Model, git, token usage, session cost, and live plan limits — directly in your Claude Code status line.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Shell: bash](https://img.shields.io/badge/shell-bash-green.svg)
 ![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)
 
-## What it shows
-
-**Default — single line:**
-
-![single-line statusline in Claude Code window](docs/screenshot-1line-window.png)
-
-**Two-line mode** (`STATUSLINE_SPLIT_LINES=true`) — separates inline data (model, git, context, cost) from API-fetched usage limits:
-
 ![two-line statusline in Claude Code window](docs/screenshot-2line-window.png)
 
-Close-up of just the status lines:
+**Install — tell Claude Code to do it:**
 
-![two-line statusline close-up](docs/screenshot-2line-terminal.png)
-
-The split is useful when you want each line to be readable at a glance without scrolling:
-- **Line 1:** model · git branch/diff · context window · session cost
-- **Line 2:** 5h session usage · 7d weekly usage · extra overage billing
-
-To enable, add to your shell profile:
-
-```bash
-export STATUSLINE_SPLIT_LINES=true
 ```
+Set up claude-code-statusline from https://github.com/aleksander-dytko/claude-code-statusline
+```
+
+Then **restart Claude Code**. No API keys, no manual token setup.
 
 ---
 
 ## What it solves
 
 Claude Code doesn't surface usage data inline — you have to switch to the web app to check your 5-hour session limit, weekly limit, or billing. This script puts all of that directly in the status line. No app switching, no manual token management, no extra setup.
+
+---
+
+## Layouts
+
+**Default — single line:**
+
+![single-line statusline in Claude Code window](docs/screenshot-1line-window.png)
+
+**Two-line mode** — separates inline data (model, git, context, cost) from API-fetched usage limits:
+
+![two-line statusline close-up](docs/screenshot-2line-terminal.png)
+
+- **Line 1:** model · git branch/diff · context window · session cost
+- **Line 2:** 5h session usage · 7d weekly usage · extra overage billing
+
+Enable with:
+
+```bash
+export STATUSLINE_SPLIT_LINES=true
+```
 
 ---
 
@@ -52,7 +59,7 @@ Set up claude-code-statusline from https://github.com/aleksander-dytko/claude-co
 curl -fsSL https://raw.githubusercontent.com/aleksander-dytko/claude-code-statusline/main/install.sh | bash
 ```
 
-Then **restart Claude Code**. That's it — no API keys, no manual token setup.
+Then **restart Claude Code**.
 
 ### Requirements
 
