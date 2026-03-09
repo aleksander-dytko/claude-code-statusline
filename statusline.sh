@@ -6,6 +6,8 @@
 # Displays: model | git repo@branch | ctx | cost | 5h limit | 7d limit | extra usage
 
 set -f  # disable globbing
+export LC_NUMERIC=C  # ensure '.' is decimal separator regardless of locale
+unset LC_ALL          # LC_ALL overrides LC_NUMERIC; unset it while preserving other locale vars
 
 # Detect stat variant once (GNU vs BSD) to avoid repeated fallback forks
 if stat -c %Y /dev/null >/dev/null 2>&1; then
@@ -24,7 +26,7 @@ STATUSLINE_SHOW_SESSION_COST="${STATUSLINE_SHOW_SESSION_COST:-true}"
 STATUSLINE_SPLIT_LINES="${STATUSLINE_SPLIT_LINES:-false}"
 STATUSLINE_CACHE_TTL="${STATUSLINE_CACHE_TTL:-60}"           # seconds between API fetches
 STATUSLINE_CACHE_DIR="${STATUSLINE_CACHE_DIR:-/tmp/claude}"  # cache directory
-STATUSLINE_CURRENCY_SYMBOL="${STATUSLINE_CURRENCY_SYMBOL:-\$}"  # set to € for Europe
+STATUSLINE_CURRENCY_SYMBOL="${STATUSLINE_CURRENCY_SYMBOL:-$}"  # set to € for Europe
 # ────────────────────────────────────────────────────────────────────────────
 
 input=$(cat)
