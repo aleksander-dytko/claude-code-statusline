@@ -6,7 +6,29 @@ An enhanced status line for [Claude Code](https://github.com/anthropics/claude-c
 ![Shell: bash](https://img.shields.io/badge/shell-bash-green.svg)
 ![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)
 
-![statusline screenshot](docs/screenshot.png)
+## What it shows
+
+**Default — single line:**
+
+![single-line statusline in Claude Code window](docs/screenshot-1line-window.png)
+
+**Two-line mode** (`STATUSLINE_SPLIT_LINES=true`) — separates inline data (model, git, context, cost) from API-fetched usage limits:
+
+![two-line statusline in Claude Code window](docs/screenshot-2line-window.png)
+
+Close-up of just the status lines:
+
+![two-line statusline close-up](docs/screenshot-2line-terminal.png)
+
+The split is useful when you want each line to be readable at a glance without scrolling:
+- **Line 1:** model · git branch/diff · context window · session cost
+- **Line 2:** 5h session usage · 7d weekly usage · extra overage billing
+
+To enable, add to your shell profile:
+
+```bash
+export STATUSLINE_SPLIT_LINES=true
+```
 
 ---
 
@@ -43,11 +65,7 @@ Then **restart Claude Code**. That's it — no API keys, no manual token setup.
 
 ---
 
-## What it shows
-
-```
-Sonnet 4.6 | project@main (+10 -3) | ctx 45k/200k (22%) | cost $0.07 | 5h 45% @4:30pm | 7d 78% @mar 14, 11am | extra ⚡ €17.30/€20 (€2.70 left)
-```
+## Segments
 
 | Segment | Label | Source | Example |
 |---------|-------|--------|---------|
