@@ -11,7 +11,7 @@ Model, git, token usage, session cost, and live plan limits — directly in your
 **Install — tell Claude Code to do it:**
 
 ```
-Set up claude-code-statusline from https://github.com/aleksander-dytko/claude-code-statusline
+Download https://raw.githubusercontent.com/aleksander-dytko/claude-code-statusline/main/statusline.sh to ~/.claude/statusline.sh and register it as the statusLine command in ~/.claude/settings.json. Use the downloaded file exactly as-is — do not generate or modify it.
 ```
 
 Then **restart Claude Code**. No API keys, no manual token setup.
@@ -50,7 +50,7 @@ export STATUSLINE_SPLIT_LINES=true
 **Option 1 — Tell Claude Code to do it:**
 
 ```
-Set up claude-code-statusline from https://github.com/aleksander-dytko/claude-code-statusline
+Download https://raw.githubusercontent.com/aleksander-dytko/claude-code-statusline/main/statusline.sh to ~/.claude/statusline.sh and register it as the statusLine command in ~/.claude/settings.json. Use the downloaded file exactly as-is — do not generate or modify it.
 ```
 
 **Option 2 — One-liner:**
