@@ -30,8 +30,8 @@ This is Part 3 of a Claude Code series I've been writing for Product Managers �
 
 If you want to understand why this script exists and what it fits into:
 
-- **[Your AI Has No Memory. Mine Does.](https://productpeak.substack.com/p/your-ai-still-has-no-memory-heres)** — the concept: why context beats prompts, and how to build a PM workspace where AI has persistent memory across sessions
-- **[Your AI Still Has No Memory? Here's the Blueprint.](https://productpeak.substack.com/p/your-ai-still-has-no-memory-heres-1)** — the open-source [ai-pm-workspace](https://github.com/aleksander-dytko/ai-pm-workspace) template you can clone and personalize in five minutes
+- **[Your AI Has No Memory. Mine Does.](https://productpeak.substack.com/p/your-ai-has-no-memory-mine-does)** — the concept: why context beats prompts, and how to build a PM workspace where AI has persistent memory across sessions
+- **[Your AI Still Has No Memory? Here's the Blueprint.](https://productpeak.substack.com/p/your-ai-still-has-no-memory-heres)** — the open-source [ai-pm-workspace](https://github.com/aleksander-dytko/ai-pm-workspace) template you can clone and personalize in five minutes
 
 The statusline is what you reach for after that setup is in place. Once you live in Claude Code daily, the last remaining friction is not knowing your session limits without leaving the terminal. This script removes that.
 
